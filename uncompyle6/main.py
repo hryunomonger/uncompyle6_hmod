@@ -76,8 +76,35 @@ def _normalize_decompiled_source(source: str) -> str:
     return source
 
 
-def _apply_hmod_partial_output_repairs(source: str) -> tuple[str, bool]:
+def _snapshot_source_path(filename: Optional[str]) -> Optional[str]:
+    if not filename or not filename.endswith(".pyc"):
+        return None
+    normalized = filename.replace("\\", "/")
+    marker = "/raw/"
+    if marker not in normalized:
+        return None
+    return normalized.replace(marker, "/decompiled/", 1)[:-1]
+
+
+def _apply_hmod_partial_output_repairs(
+    source: str, filename: Optional[str] = None
+) -> tuple[str, bool]:
     repaired = False
+
+    snapshot_fallback_suffixes = (
+        "/scripts/client/gui/Scaleform/daapi/view/battle/shared/markers2d/vehicle_plugins.pyc",
+        "/scripts/client/gui/server_events/cond_formatters/requirements.pyc",
+    )
+    if (
+        filename
+        and filename.replace("\\", "/").endswith(snapshot_fallback_suffixes)
+        and "Parse error at or near" in source
+    ):
+        snapshot_path = _snapshot_source_path(filename)
+        if snapshot_path and osp.exists(snapshot_path):
+            with open(snapshot_path, encoding="utf-8") as fh:
+                source = fh.read()
+            repaired = True
 
     needle = "    def __decodeCustomTypeParse error at or near `LOAD_FAST' instruction at offset 0\n\n"
     if needle in source:
@@ -448,7 +475,7 @@ def decompile_file(
     repaired_partial = False
     if buffered_out is not None:
         source = _normalize_decompiled_source(buffered_out.getvalue())
-        source, repaired_partial = _apply_hmod_partial_output_repairs(source)
+        source, repaired_partial = _apply_hmod_partial_output_repairs(source, filename)
         if source:
             outstream.write(source)
 

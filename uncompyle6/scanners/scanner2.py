@@ -1350,11 +1350,7 @@ class Scanner2(Scanner):
                 # Especially for < 2.7
                 if label is not None and label != -1:
                     if self.version[:2] == (2, 7):
-                        # FIXME: rocky: I think we need something like this...
-                        if label in self.setup_loops:
-                            source = self.setup_loops[label]
-                        else:
-                            source = offset
+                        source = offset
                         targets[label] = targets.get(label, []) + [source]
                     elif not (
                         code[label] == self.opc.POP_TOP

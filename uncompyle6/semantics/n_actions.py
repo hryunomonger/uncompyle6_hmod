@@ -16,6 +16,8 @@
 Custom Nonterminal action functions. See NonterminalActions docstring.
 """
 
+from xdis.cross_types import UnicodeForPython3
+
 from uncompyle6.parsers.treenode import SyntaxTree
 from uncompyle6.scanners.tok import Token
 from uncompyle6.semantics.consts import (
@@ -27,7 +29,12 @@ from uncompyle6.semantics.consts import (
     minint,
 )
 from uncompyle6.semantics.helper import find_code_node, flatten_list, print_docstring
-from uncompyle6.util import better_repr, get_code_name
+from uncompyle6.util import (
+    better_repr,
+    future_unicode_literal_repr,
+    get_code_name,
+    unicode_literal_repr,
+)
 
 
 class NonterminalActions:
@@ -275,8 +282,8 @@ class NonterminalActions:
                 if elem == "ADD_VALUE":
                     if elem.optype in ("local", "name"):
                         value = elem.attr
-                    elif elem.optype == "const":
-                        value = elem.pattr
+                    elif elem.optype == "const" and not isinstance(elem.attr, str):
+                        value = elem.attr
                     else:
                         value = "%s" % repr(elem.attr)
                 else:
@@ -1125,9 +1132,11 @@ class NonterminalActions:
             #    u'xxx' -> 'xxx'
             #    xxx'   -> b'xxx'
             if isinstance(data, str):
-                self.write("b" + repr(data))
+                self.write(future_unicode_literal_repr(data))
             else:
                 self.write(repr(data))
+        elif isinstance(data, UnicodeForPython3):
+            self.write(unicode_literal_repr(data))
         else:
             self.write(repr(data))
         # LOAD_CONST is a terminal, so stop processing/recursing early

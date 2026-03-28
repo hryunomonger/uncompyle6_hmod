@@ -15,6 +15,7 @@
 
 import ast
 import datetime
+import io
 import os
 import os.path as osp
 import py_compile
@@ -25,12 +26,7 @@ from typing import Any, Optional, TextIO, Tuple
 
 from xdis import iscode
 from xdis.load import load_module
-from xdis.version_info import (
-    IS_PYPY,
-    PYTHON_VERSION_TRIPLE,
-    PythonImplementation,
-    version_tuple_to_str,
-)
+from xdis.version_info import IS_PYPY, PYTHON_VERSION_TRIPLE, version_tuple_to_str
 
 from uncompyle6.code_fns import check_object_path
 from uncompyle6.parser import ParserError
@@ -70,6 +66,13 @@ def syntax_check(filename: str) -> bool:
     except SyntaxError:
         valid = False
     return valid
+
+
+def _normalize_decompiled_source(source: str) -> str:
+    trimmed = source.rstrip()
+    if trimmed.endswith("\nreturn"):
+        return trimmed[: -len("\nreturn")] + "\n"
+    return source
 
 
 def decompile(
@@ -118,7 +121,7 @@ def decompile(
         write(f"# -*- coding: {source_encoding} -*-")
     write(
         "# uncompyle6 version %s\n"
-        "# %sPython bytecode version base %s%s\n#   Decompiled from: %sPython %s"
+        "# %sPython bytecode version base %s%s\n# Decompiled from: %sPython %s"
         % (
             __version__,
             co_pypy_str,
@@ -221,60 +224,68 @@ def decompile_file(
 
     filename = check_object_path(filename)
     code_objects = {}
-    (
-        version,
-        timestamp,
-        magic_int,
-        co,
-        python_implementation,
-        source_size,
-        _,
-        _,
-    ) = load_module(filename, code_objects)
+    version, timestamp, magic_int, co, is_pypy, source_size, _ = load_module(
+        filename, code_objects
+    )
+    buffered_out = io.StringIO() if outstream is not None else None
+    target_out = buffered_out if buffered_out is not None else outstream
+    deparsed = None
+    error = None
 
-    if isinstance(co, list):
-        deparsed = []
-        for bytecode in co:
-            deparsed.append(
+    try:
+        if isinstance(co, list):
+            deparsed = []
+            for bytecode in co:
+                deparsed.append(
+                    decompile(
+                        bytecode,
+                        version,
+                        target_out,
+                        showasm,
+                        showast,
+                        timestamp,
+                        showgrammar,
+                        source_encoding,
+                        code_objects=code_objects,
+                        is_pypy=is_pypy,
+                        magic_int=magic_int,
+                        mapstream=mapstream,
+                        start_offset=start_offset,
+                        stop_offset=stop_offset,
+                    ),
+                )
+        else:
+            deparsed = [
                 decompile(
-                    bytecode,
+                    co,
                     version,
-                    outstream,
+                    target_out,
                     showasm,
                     showast,
                     timestamp,
                     showgrammar,
                     source_encoding,
                     code_objects=code_objects,
-                    is_pypy=python_implementation == PythonImplementation.PyPy,
+                    source_size=source_size,
+                    is_pypy=is_pypy,
                     magic_int=magic_int,
                     mapstream=mapstream,
+                    do_fragments=do_fragments,
+                    compile_mode="exec",
                     start_offset=start_offset,
                     stop_offset=stop_offset,
-                ),
-            )
-    else:
-        deparsed = [
-            decompile(
-                co,
-                version,
-                outstream,
-                showasm,
-                showast,
-                timestamp,
-                showgrammar,
-                source_encoding,
-                code_objects=code_objects,
-                source_size=source_size,
-                is_pypy=python_implementation == PythonImplementation.PyPy,
-                magic_int=magic_int,
-                mapstream=mapstream,
-                do_fragments=do_fragments,
-                compile_mode="exec",
-                start_offset=start_offset,
-                stop_offset=stop_offset,
-            )
-        ]
+                )
+            ]
+    except Exception as exc:
+        error = exc
+
+    if buffered_out is not None:
+        source = _normalize_decompiled_source(buffered_out.getvalue())
+        if source:
+            outstream.write(source)
+
+    if error is not None:
+        raise error
     return deparsed
 
 

@@ -1,4 +1,4 @@
-#  Copyright (c) 2015-2025 by Rocky Bernstein
+#  Copyright (c) 2015-2024 by Rocky Bernstein
 #  Copyright (c) 2005 by Dan Pascu <dan@windowmaker.org>
 #  Copyright (c) 2000-2002 by hartmut Goebel <h.goebel@crazy-compilers.com>
 #
@@ -39,7 +39,7 @@ from copy import copy
 from sys import intern
 
 from xdis import code2num, instruction_size, iscode, op_has_argument
-from xdis.bytecode import _get_const_info, get_optype
+from xdis.bytecode import _get_const_info
 
 from uncompyle6.scanner import Scanner, Token
 
@@ -208,7 +208,11 @@ class Scanner2(Scanner):
         if show_asm in ("both", "before"):
             print("\n# ---- disassembly:")
             bytecode.disassemble_bytes(
-                co,
+                co.co_code,
+                varnames=co.co_varnames,
+                names=co.co_names,
+                constants=co.co_consts,
+                cells=bytecode._cell_names,
                 line_starts=bytecode._linestarts,
                 asm_format="extended",
             )
@@ -304,7 +308,6 @@ class Scanner2(Scanner):
 
             op = self.code[offset]
             op_name = self.op_name(op)
-            op_type = get_optype(op, self.opc)
 
             oparg = None
             pattr = None
@@ -471,15 +474,7 @@ class Scanner2(Scanner):
             if offset not in replace:
                 new_tokens.append(
                     Token(
-                        op_name,
-                        oparg,
-                        pattr,
-                        offset,
-                        linestart,
-                        op,
-                        has_arg,
-                        self.opc,
-                        optype=op_type,
+                        op_name, oparg, pattr, offset, linestart, op, has_arg, self.opc
                     )
                 )
             else:
@@ -493,7 +488,6 @@ class Scanner2(Scanner):
                         op,
                         has_arg,
                         self.opc,
-                        optype=op_type,
                     )
                 )
                 pass

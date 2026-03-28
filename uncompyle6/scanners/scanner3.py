@@ -1,4 +1,4 @@
-#  Copyright (c) 2015-2019, 2021-2024, 2026 by Rocky Bernstein
+#  Copyright (c) 2015-2019, 2021-2024 by Rocky Bernstein
 #  Copyright (c) 2005 by Dan Pascu <dan@windowmaker.org>
 #  Copyright (c) 2000-2002 by hartmut Goebel <h.goebel@crazy-compilers.com>
 #
@@ -39,12 +39,12 @@ import sys
 from typing import Optional, Tuple
 
 import xdis
-from xdis import Instruction, instruction_size, iscode
-from xdis.bytecode import _get_const_info
 
 # Get all the opcodes into globals
-from xdis.opcodes import opcode_33 as op3
-from xdis.opcodes.opcode_3x.opcode_3x import parse_fn_counts_30_35
+import xdis.opcodes.opcode_33 as op3
+from xdis import Instruction, instruction_size, iscode
+from xdis.bytecode import _get_const_info
+from xdis.opcodes.opcode_3x import parse_fn_counts_30_35
 
 from uncompyle6.scanner import CONST_COLLECTIONS, Scanner
 from uncompyle6.scanners.tok import Token
@@ -424,7 +424,11 @@ class Scanner3(Scanner):
         if show_asm in ("both", "before"):
             print("\n# ---- disassembly:")
             bytecode.disassemble_bytes(
-                co,
+                co.co_code,
+                varnames=co.co_varnames,
+                names=co.co_names,
+                constants=co.co_consts,
+                cells=bytecode._cell_names,
                 line_starts=bytecode._linestarts,
                 asm_format="extended",
             )

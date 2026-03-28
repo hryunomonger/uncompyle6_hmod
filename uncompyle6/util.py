@@ -17,10 +17,40 @@ def is_negative_zero(n):
     return n == 0.0 and copysign(1, n) == -1
 
 
+def unicode_literal_repr(data):
+    if isinstance(data, UnicodeForPython3):
+        try:
+            text = data.value.decode("utf-8")
+        except UnicodeDecodeError:
+            return repr(data.value)
+    elif isinstance(data, bytes):
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            return repr(data)
+    else:
+        text = str(data)
+    escaped = text.encode("unicode_escape").decode("ascii")
+    escaped = escaped.replace("'", "\\'")
+    return "u'" + escaped + "'"
+
+
+def future_unicode_literal_repr(data):
+    if isinstance(data, UnicodeForPython3):
+        return repr(data.value)
+    if isinstance(data, bytes):
+        return repr(data)
+    return repr(str(data).encode("utf-8"))
+
+
 def better_repr(v, version):
     """Work around Python's unorthogonal and unhelpful repr() for primitive float
     and complex."""
-    if isinstance(v, float):
+    if isinstance(v, UnicodeForPython3):
+        return unicode_literal_repr(v)
+    elif isinstance(v, bytes):
+        return repr(v)
+    elif isinstance(v, float):
         # float values 'nan' and 'inf' are not directly
         # representable in Python before Python 3.5. In Python 3.5
         # it is accessible via a library constant math.inf.  We
@@ -51,7 +81,7 @@ def better_repr(v, version):
     elif isinstance(v, list):
         if len(v) == 1:
             return "[%s,]" % better_repr(v[0], version)
-        return "[%s]" % ", ".join(better_repr(i) for i in v)
+        return "[%s]" % ", ".join(better_repr(i, version) for i in v)
     # TODO: elif deal with sets and dicts
     else:
         return repr(v)

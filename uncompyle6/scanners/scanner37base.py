@@ -1,4 +1,4 @@
-#  Copyright (c) 2015-2020, 2022-2024, 2026 by Rocky Bernstein
+#  Copyright (c) 2015-2020, 2022-2024 by Rocky Bernstein
 #  Copyright (c) 2005 by Dan Pascu <dan@windowmaker.org>
 #  Copyright (c) 2000-2002 by hartmut Goebel <h.goebel@crazy-compilers.com>
 #
@@ -33,11 +33,11 @@ import sys
 from typing import Any, Dict, List, Set, Tuple
 
 import xdis
-from xdis import Instruction, instruction_size, iscode
-from xdis.bytecode import _get_const_info
 
 # Get all the opcodes into globals
-from xdis.opcodes import opcode_37 as op3
+import xdis.opcodes.opcode_37 as op3
+from xdis import Instruction, instruction_size, iscode
+from xdis.bytecode import _get_const_info
 
 from uncompyle6.scanner import Scanner, Token
 
@@ -230,6 +230,10 @@ class Scanner37Base(Scanner):
             print("\n# ---- disassembly:")
             bytecode.disassemble_bytes(
                 co.co_code,
+                varnames=co.co_varnames,
+                names=co.co_names,
+                constants=co.co_consts,
+                cells=bytecode._cell_names,
                 line_starts=bytecode._linestarts,
                 asm_format="extended",
                 filename=co.co_filename,

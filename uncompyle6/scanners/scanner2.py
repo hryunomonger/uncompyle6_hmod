@@ -494,7 +494,6 @@ class Scanner2(Scanner):
             pass
 
         new_tokens = self.normalize_forward_jump_targets(new_tokens)
-        new_tokens = self.prune_unreachable_forward_tokens(new_tokens)
 
         if show_asm in ("both", "after"):
             print("\n# ---- tokenization:")
@@ -1493,7 +1492,7 @@ class Scanner2(Scanner):
 
             pruned.append(token)
 
-            if token.kind in ("JUMP_FORWARD", "JUMP_ABSOLUTE"):
+            if token.kind == "JUMP_FORWARD":
                 target = token.attr
                 if isinstance(target, int) and target > offset:
                     skip_until = target

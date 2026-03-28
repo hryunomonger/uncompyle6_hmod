@@ -132,6 +132,7 @@ class Python27Parser(Python2Parser):
 
         compare_chained_right ::= expr COMPARE_OP return_lambda
         compare_chained_right ::= expr COMPARE_OP return_lambda
+        compare_chained_right ::= expr COMPARE_OP JUMP_ABSOLUTE
 
         # if_exp_true are for conditions which always evaluate true
         # There is dead or non-optional remnants of the condition code though,

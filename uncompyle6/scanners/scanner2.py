@@ -493,6 +493,9 @@ class Scanner2(Scanner):
                 pass
             pass
 
+        new_tokens = self.normalize_forward_jump_targets(new_tokens)
+        new_tokens = self.prune_unreachable_forward_tokens(new_tokens)
+
         if show_asm in ("both", "after"):
             print("\n# ---- tokenization:")
             # FIXME: t.format() is changing tokens!
@@ -1426,6 +1429,83 @@ class Scanner2(Scanner):
                 and self.code[offset + 3] == self.opc.END_FINALLY
             ):
                 tokens[-1].kind = intern("CONTINUE")
+
+    def normalize_forward_jump_targets(self, tokens):
+        def base_offset(token):
+            offset = token.offset
+            if isinstance(offset, int):
+                return offset
+            return int(str(offset).split("_", 1)[0])
+
+        jumps = {}
+        for token in tokens:
+            offset = base_offset(token)
+            if token.kind in ("JUMP_FORWARD", "JUMP_ABSOLUTE"):
+                target = token.attr
+                if isinstance(target, int) and target > offset:
+                    jumps[offset] = token
+
+        def resolve_target(target):
+            seen = set()
+            while target in jumps and target not in seen:
+                seen.add(target)
+                next_token = jumps[target]
+                next_offset = base_offset(next_token)
+                next_target = next_token.attr
+                if not isinstance(next_target, int) or next_target <= next_offset:
+                    break
+                target = next_target
+            return target
+
+        for token in tokens:
+            offset = base_offset(token)
+            if token.kind in ("JUMP_FORWARD", "JUMP_ABSOLUTE"):
+                target = token.attr
+                if isinstance(target, int) and target > offset:
+                    final_target = resolve_target(target)
+                    if final_target != target:
+                        token.attr = final_target
+                        token.pattr = repr(final_target)
+        return tokens
+
+    def prune_unreachable_forward_tokens(self, tokens):
+        def base_offset(token):
+            offset = token.offset
+            if isinstance(offset, int):
+                return offset
+            return int(str(offset).split("_", 1)[0])
+
+        pruned = []
+        skip_until = None
+        removed_offsets = set()
+        for token in tokens:
+            offset = base_offset(token)
+
+            if skip_until is not None and offset >= skip_until:
+                skip_until = None
+
+            if skip_until is not None:
+                if token.kind == "COME_FROM":
+                    skip_until = None
+                else:
+                    removed_offsets.add(offset)
+                    continue
+
+            pruned.append(token)
+
+            if token.kind in ("JUMP_FORWARD", "JUMP_ABSOLUTE"):
+                target = token.attr
+                if isinstance(target, int) and target > offset:
+                    skip_until = target
+
+        if not removed_offsets:
+            return pruned
+
+        return [
+            token
+            for token in pruned
+            if not (token.kind == "COME_FROM" and token.attr in removed_offsets)
+        ]
 
     # FIXME: combine with scanner3.py code and put into scanner.py
     def rem_or(self, start, end, instr, target=None, include_beyond_target=False):

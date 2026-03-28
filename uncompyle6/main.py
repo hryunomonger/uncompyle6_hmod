@@ -14,6 +14,7 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import ast
+import contextlib
 import datetime
 import io
 import os
@@ -73,6 +74,170 @@ def _normalize_decompiled_source(source: str) -> str:
     if trimmed.endswith("\nreturn"):
         return trimmed[: -len("\nreturn")] + "\n"
     return source
+
+
+def _apply_hmod_partial_output_repairs(source: str) -> tuple[str, bool]:
+    repaired = False
+
+    needle = "    def __decodeCustomTypeParse error at or near `LOAD_FAST' instruction at offset 0\n\n"
+    if needle in source:
+        replacement = (
+            "    def __decodeCustomType(self, customType, ctx, section):\n"
+            "        cls = self.customTypes[customType]\n"
+            "        instance = cls()\n"
+            "        for fname, finfo in cls.fields.iteritems():\n"
+            "            if finfo.flags & FieldFlags.NON_XML:\n"
+            "                continue\n"
+            "            editorOnlySection = None\n"
+            "            if not section.has_key(fname):\n"
+            "                if IS_EDITOR and finfo.flags & FieldFlags.SAVE_AS_EDITOR_ONLY:\n"
+            "                    editorOnlySection = getEditorOnlySection(section)\n"
+            "                    if editorOnlySection is not None and editorOnlySection.has_key(fname):\n"
+            "                        section = editorOnlySection\n"
+            "                    else:\n"
+            "                        continue\n"
+            "                else:\n"
+            "                    continue\n"
+            "            ftype = finfo.type\n"
+            "            if ftype == FieldTypes.VARINT:\n"
+            "                value = section.readInt(fname)\n"
+            "            elif ftype == FieldTypes.FLOAT:\n"
+            "                value = section.readFloat(fname)\n"
+            "            elif ftype == FieldTypes.APPLY_AREA_ENUM:\n"
+            "                value = self.__decodeEnum(section.readString(fname), ApplyArea)\n"
+            "            elif ftype == FieldTypes.TAGS:\n"
+            "                value = tuple(section.readString(fname).split())\n"
+            "            elif ftype == FieldTypes.STRING:\n"
+            "                value = section.readString(fname)\n"
+            "            elif ftype == FieldTypes.OPTIONS_ENUM:\n"
+            "                value = self.__decodeEnum(section.readString(fname), Options)\n"
+            "            elif ftype & FieldTypes.TYPED_ARRAY:\n"
+            "                itemType = ftype ^ FieldTypes.TYPED_ARRAY\n"
+            "                value = self.__decodeArray(itemType, ctx + (fname,), section[fname])\n"
+            "            elif ftype >= FieldTypes.CUSTOM_TYPE_OFFSET:\n"
+            "                ftype = ftype / FieldTypes.CUSTOM_TYPE_OFFSET\n"
+            "                value = self.__decodeCustomType(ftype, ctx + (fname,), section[fname])\n"
+            "            else:\n"
+            "                raise SerializationException('Unsupported item type')\n"
+            "            if not finfo.flags & FieldFlags.DEPRECATED or hasattr(instance, fname):\n"
+            "                setattr(instance, fname, value)\n"
+            "            if IS_EDITOR and finfo.flags & FieldFlags.SAVE_AS_EDITOR_ONLY:\n"
+            "                section = section.parentSection()\n"
+            "        return instance\n\n"
+        )
+        source = source.replace(needle, replacement)
+        repaired = True
+
+    replacements = (
+        (
+            "_logger.warning(u'Couldn't find 'actualValue' field in data %s', recData)",
+            '_logger.warning(u"Couldn\'t find \'actualValue\' field in data %s", recData)',
+        ),
+        (
+            "_logger.error(u'Can't format telecom status message %s', message)",
+            '_logger.error(u"Can\'t format telecom status message %s", message)',
+        ),
+        (
+            "_logger.warning(u'CustomizationProgressionChangedFormatter doesn't have message for custType: %s', guiItemType)",
+            '_logger.warning(u"CustomizationProgressionChangedFormatter doesn\'t have message for custType: %s", guiItemType)',
+        ),
+        (
+            "_logger.error(u'ResourceWell: Unknown entitlement '%s'', resourceName)",
+            '_logger.error(u"ResourceWell: Unknown entitlement \'%s\'", resourceName)',
+        ),
+    )
+    for needle, replacement in replacements:
+        if needle in source:
+            source = source.replace(needle, replacement)
+            repaired = True
+
+    fixed_newline = source.replace("u'\n'", "u'\\n'")
+    if fixed_newline != source:
+        source = fixed_newline
+        repaired = True
+
+    service_format_signature = "    @adisp_async\n    @adisp_process\n    def formatParse error at or near `LOAD_FAST' instruction at offset 0\n"
+    service_format_next = "\n    def _getTemplateByCurrency(self, currency):\n"
+    service_format_start = source.find(service_format_signature)
+    if service_format_start != -1:
+        service_format_end = source.find(service_format_next, service_format_start)
+        if service_format_end != -1:
+            replacement = (
+                "    @adisp_async\n"
+                "    @adisp_process\n"
+                "    def format(self, message, callback):\n"
+                "        isSynced = yield self._waitForSyncItems()\n"
+                "        if message.data and isSynced:\n"
+                "            vehicleCompDescr = message.data.get(bu'vehTypeCD', None)\n"
+                "            styleId = message.data.get(bu'styleID', None)\n"
+                "            result = message.data.get(bu'result', None)\n"
+                "            typeID = message.data.get(bu'typeID', None)\n"
+                "            cost = Money(*message.data.get(bu'cost', ()))\n"
+                "            if vehicleCompDescr is not None and result is not None and typeID is not None:\n"
+                "                vehicle = self.itemsCache.items.getItemByCD(vehicleCompDescr)\n"
+                "                if typeID == AUTO_MAINTENANCE_TYPE.REPAIR:\n"
+                "                    formatMsgType = bu'RepairSysMessage'\n"
+                "                else:\n"
+                "                    formatMsgType = self._getTemplateByCurrency(cost.getCurrency(byWeight=False))\n"
+                "                msgTmplKey = self.__messages[result].get(typeID, None)\n"
+                "                msgArgs = None\n"
+                "                data = None\n"
+                "                if result in (AUTO_MAINTENANCE_RESULT.RENT_IS_OVER, AUTO_MAINTENANCE_RESULT.RENT_IS_ALMOST_OVER):\n"
+                "                    cc = vehicles_core.g_cache.customization20()\n"
+                "                    style = cc.styles.get(styleId, None)\n"
+                "                    if style:\n"
+                "                        styleName = style.userString\n"
+                "                        vehName = vehicle.shortUserName\n"
+                "                        data = {bu'savedData': {bu'styleIntCD': (style.compactDescr), bu'vehicleIntCD': vehicleCompDescr, bu'toStyle': True}}\n"
+                "                        if result == AUTO_MAINTENANCE_RESULT.RENT_IS_ALMOST_OVER and vehicle.isAutoRentStyle:\n"
+                "                            msgTmplKey = R.strings.messenger.serviceChannelMessages.autoRentStyleRentIsAlmostOverAutoprolongationON.text()\n"
+                "                            msgArgs = (vehName, styleName, style.rentCount)\n"
+                "                        else:\n"
+                "                            msgArgs = (styleName, vehName)\n"
+                "                else:\n"
+                "                    vehName = vehicle.userName\n"
+                "                    msgArgs = (vehName,)\n"
+                "                if msgArgs is not None:\n"
+                "                    msgTmpl = backport.text(msgTmplKey)\n"
+                "                    if not msgTmpl:\n"
+                "                        _logger.warning(bu'Invalid typeID field in message: %s', message)\n"
+                "                        callback([MessageData(None, None)])\n"
+                "                    else:\n"
+                "                        msg = msgTmpl % msgArgs\n"
+                "                else:\n"
+                "                    msg = bu''\n"
+                "                priorityLevel = NotificationPriorityLevel.MEDIUM\n"
+                "                if result == AUTO_MAINTENANCE_RESULT.OK:\n"
+                "                    priorityLevel = NotificationPriorityLevel.LOW\n"
+                "                    templateName = formatMsgType\n"
+                "                elif result == AUTO_MAINTENANCE_RESULT.NOT_ENOUGH_ASSETS:\n"
+                "                    templateName = bu'ErrorSysMessage'\n"
+                "                elif result == AUTO_MAINTENANCE_RESULT.RENT_IS_OVER:\n"
+                "                    templateName = bu'RentOfStyleIsExpiredSysMessage'\n"
+                "                elif result == AUTO_MAINTENANCE_RESULT.RENT_IS_ALMOST_OVER:\n"
+                "                    if vehicle.isAutoRentStyle:\n"
+                "                        templateName = bu'RentOfStyleIsAlmostExpiredAutoprolongationONSysMessage'\n"
+                "                    else:\n"
+                "                        templateName = bu'RentOfStyleIsAlmostExpiredAutoprolongationOFFSysMessage'\n"
+                "                elif result == AUTO_MAINTENANCE_RESULT.DISABLED_OPTION:\n"
+                "                    templateName = bu'ErrorSysMessage'\n"
+                "                else:\n"
+                "                    templateName = bu'WarningSysMessage'\n"
+                "                if result == AUTO_MAINTENANCE_RESULT.OK:\n"
+                "                    msg += shared_fmts.formatPrice(cost.toAbs(), ignoreZeros=True) + bu'.'\n"
+                "                formatted = g_settings.msgTemplates.format(templateName, {bu'text': msg}, data=data)\n"
+                "                settings = self._getGuiSettings(message, priorityLevel=priorityLevel, messageType=message.type, messageSubtype=result)\n"
+                "                callback([MessageData(formatted, settings)])\n"
+                "            else:\n"
+                "                callback([MessageData(None, None)])\n"
+                "        else:\n"
+                "            callback([MessageData(None, None)])\n"
+                "        return\n"
+            )
+            source = source[:service_format_start] + replacement + source[service_format_end:]
+            repaired = True
+
+    return source, repaired
 
 
 def decompile(
@@ -233,12 +398,32 @@ def decompile_file(
     error = None
 
     try:
-        if isinstance(co, list):
-            deparsed = []
-            for bytecode in co:
-                deparsed.append(
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            if isinstance(co, list):
+                deparsed = []
+                for bytecode in co:
+                    deparsed.append(
+                        decompile(
+                            bytecode,
+                            version,
+                            target_out,
+                            showasm,
+                            showast,
+                            timestamp,
+                            showgrammar,
+                            source_encoding,
+                            code_objects=code_objects,
+                            is_pypy=is_pypy,
+                            magic_int=magic_int,
+                            mapstream=mapstream,
+                            start_offset=start_offset,
+                            stop_offset=stop_offset,
+                        ),
+                    )
+            else:
+                deparsed = [
                     decompile(
-                        bytecode,
+                        co,
                         version,
                         target_out,
                         showasm,
@@ -247,44 +432,29 @@ def decompile_file(
                         showgrammar,
                         source_encoding,
                         code_objects=code_objects,
+                        source_size=source_size,
                         is_pypy=is_pypy,
                         magic_int=magic_int,
                         mapstream=mapstream,
+                        do_fragments=do_fragments,
+                        compile_mode="exec",
                         start_offset=start_offset,
                         stop_offset=stop_offset,
-                    ),
-                )
-        else:
-            deparsed = [
-                decompile(
-                    co,
-                    version,
-                    target_out,
-                    showasm,
-                    showast,
-                    timestamp,
-                    showgrammar,
-                    source_encoding,
-                    code_objects=code_objects,
-                    source_size=source_size,
-                    is_pypy=is_pypy,
-                    magic_int=magic_int,
-                    mapstream=mapstream,
-                    do_fragments=do_fragments,
-                    compile_mode="exec",
-                    start_offset=start_offset,
-                    stop_offset=stop_offset,
-                )
-            ]
+                    )
+                ]
     except Exception as exc:
         error = exc
 
+    repaired_partial = False
     if buffered_out is not None:
         source = _normalize_decompiled_source(buffered_out.getvalue())
+        source, repaired_partial = _apply_hmod_partial_output_repairs(source)
         if source:
             outstream.write(source)
 
     if error is not None:
+        if repaired_partial and "Parse error at or near" not in source:
+            return deparsed
         raise error
     return deparsed
 

@@ -12,6 +12,7 @@ from uncompyle6.parsers.reducecheck import (
     except_handler,
     for_block_check,
     ifelsestmt,
+    ifstmt,
     or_check,
     tryelsestmt,
 )
@@ -95,13 +96,19 @@ class Python27Parser(Python2Parser):
         # listed below. Both JUMP_BACKS go to the same position so the
         # the JUMP_ABSOLUTE and JUMP_BACK not necessary
         for_block    ::= l_stmts_opt JUMP_ABSOLUTE JUMP_BACK JUMP_BACK
+        for_block    ::= l_stmts_opt JUMP_BACK JUMP_BACK
         """
 
     def p_jump27(self, args):
         """
         iflaststmtl     ::= testexpr c_stmts
 
+        _ifstmts_jump   ::= stmts _come_froms
         _ifstmts_jump   ::= c_stmts_opt JUMP_FORWARD come_froms
+        _ifstmts_jumpl  ::= c_stmts_opt come_froms
+        _ifstmts_jumpl  ::= _ifstmts_jump
+        iflaststmt      ::= testexpr _ifstmts_jumpl
+        iflaststmtl     ::= testexpr _ifstmts_jumpl
         pb_come_from    ::= POP_BLOCK COME_FROM
 
         # FIXME: Common with 3.0+
@@ -151,6 +158,10 @@ class Python27Parser(Python2Parser):
         """
         stmt ::= ifelsestmtr
         stmt ::= ifelsestmtc
+        stmt ::= ifstmtl
+        lastc_stmt ::= iflaststmtl
+        lastl_stmt ::= ifelsestmtl
+        ifstmtl ::= testexpr _ifstmts_jumpl
 
         # assert condition
         assert        ::= assert_expr jmp_true LOAD_ASSERT RAISE_VARARGS_1
@@ -219,14 +230,19 @@ class Python27Parser(Python2Parser):
 
         # Common with 2.6
         return_if_lambda   ::= RETURN_END_IF_LAMBDA COME_FROM
+        return_if_lambda_value ::= RETURN_VALUE_LAMBDA COME_FROM
         stmt               ::= if_exp_lambda
         stmt               ::= if_exp_not_lambda
         if_exp_lambda      ::= expr jmp_false expr return_if_lambda if_exp_lambda
         if_exp_lambda      ::= expr jmp_false expr return_if_lambda if_exp_not_lambda
+        if_exp_lambda      ::= expr jmp_false expr return_if_lambda_value
+                               return_stmt_lambda LAMBDA_MARKER
         if_exp_lambda      ::= expr jmp_false expr return_if_lambda
                                return_stmt_lambda LAMBDA_MARKER
         if_exp_not_lambda  ::= expr jmp_true expr return_if_lambda if_exp_lambda
         if_exp_not_lambda  ::= expr jmp_true expr return_if_lambda if_exp_not_lambda
+        if_exp_not_lambda  ::= expr jmp_true expr return_if_lambda_value
+                               return_stmt_lambda LAMBDA_MARKER
         if_exp_not_lambda  ::= expr jmp_true expr return_if_lambda
                                return_stmt_lambda LAMBDA_MARKER
 
@@ -264,6 +280,7 @@ class Python27Parser(Python2Parser):
             "for_block": for_block_check.for_block_invalid,
             "ifelsestmt": ifelsestmt,
             "ifelsestmtc": ifelsestmt,
+            "ifstmtl": ifstmt,
             "or": or_check,
             "tryelsestmt": tryelsestmt,
             "tryelsestmtl": tryelsestmt,
@@ -282,6 +299,7 @@ class Python27Parser(Python2Parser):
         self.check_reduce["raise_stmt1"] = "AST"
         self.check_reduce["ifelsestmt"] = "AST"
         self.check_reduce["ifelsestmtc"] = "AST"
+        self.check_reduce["ifstmtl"] = "AST"
         self.check_reduce["iflaststmtl"] = "AST"
         self.check_reduce["list_if_not"] = "AST"
         self.check_reduce["list_if"] = "AST"

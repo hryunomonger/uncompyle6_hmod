@@ -1,6 +1,15 @@
 #  Copyright (c) 2020, 2023 Rocky Bernstein
 
 
+def _jump_token_target(token):
+    if token.kind == "JUMP_FORWARD":
+        try:
+            return int(token.pattr)
+        except (TypeError, ValueError):
+            return token.attr
+    return token.attr
+
+
 def ifstmt(self, lhs, n, rule, ast, tokens, first, last):
 
     first_offset = tokens[first].off2int(prefer_last=False)
@@ -9,8 +18,14 @@ def ifstmt(self, lhs, n, rule, ast, tokens, first, last):
         if last == n:
             last -= 1
             pass
-        if tokens[last].attr and isinstance(tokens[last].attr, int):
-            if first_offset >= tokens[last].attr:
+        last_token = tokens[last]
+        jump_target = _jump_token_target(last_token)
+        if (
+            last_token.kind.startswith("JUMP")
+            or last_token.kind.startswith("COME_FROM")
+            or last_token.kind == "CONTINUE"
+        ) and jump_target and isinstance(jump_target, int):
+            if first_offset >= jump_target:
                 return True
             pass
         pass
@@ -37,7 +52,7 @@ def ifstmt(self, lhs, n, rule, ast, tokens, first, last):
                 # large for the instruction; so instead it
                 # jumps to a JUMP_FORWARD. Allow that here.
                 if tokens[l] == "JUMP_FORWARD":
-                    return tokens[l].attr != pjif_target
+                    return _jump_token_target(tokens[l]) != pjif_target
                 return True
             elif lhs == "ifstmtl" and first_offset > pjif_target:
                 # A conditional JUMP to the loop is expected for "ifstmtl"

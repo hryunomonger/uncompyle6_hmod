@@ -710,7 +710,10 @@ class Python2Parser(PythonParser):
             # Test that jmp_false jumps to the end of "and"
             # or that it jumps to the same place as the end of "and"
             jmp_false = ast[1][0]
-            jmp_target = jmp_false.offset + jmp_false.attr + 3
+            if jmp_false.kind == "POP_JUMP_IF_FALSE":
+                jmp_target = jmp_false.attr
+            else:
+                jmp_target = jmp_false.offset + jmp_false.attr + 3
             return not (
                 jmp_target == tokens[last].offset
                 or tokens[last].pattr == jmp_false.pattr

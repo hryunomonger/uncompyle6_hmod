@@ -250,7 +250,7 @@ def ifelsestmt(self, lhs, n, rule, tree, tokens, first, last):
                 # If the "else" jump jumps before the end of the the "if .. else end", then this
                 # is not this kind of "ifelsestmt".
                 jump_else_forward = jump_else_end[0]
-                jump_else_forward_target = jump_else_forward.attr
+                jump_else_forward_target = int(jump_else_forward.pattr)
                 if jump_else_forward_target < last_offset:
                     return True
                 pass
@@ -272,7 +272,7 @@ def ifelsestmt(self, lhs, n, rule, tree, tokens, first, last):
                     jump_false = jmp
                     if (
                         tree[2].kind in ("JUMP_FORWARD", "JUMP_ABSOLUTE")
-                        and jump_false == "jmp_false"
+                        and jump_false.kind in ("jmp_false", "jmp_true")
                         and len(else_suite) == 1
                     ):
                         suite_stmts = else_suite[0]

@@ -215,8 +215,12 @@ class Python27Parser(Python2Parser):
         return_if_lambda   ::= RETURN_END_IF_LAMBDA COME_FROM
         stmt               ::= if_exp_lambda
         stmt               ::= if_exp_not_lambda
+        if_exp_lambda      ::= expr jmp_false expr return_if_lambda if_exp_lambda
+        if_exp_lambda      ::= expr jmp_false expr return_if_lambda if_exp_not_lambda
         if_exp_lambda      ::= expr jmp_false expr return_if_lambda
                                return_stmt_lambda LAMBDA_MARKER
+        if_exp_not_lambda  ::= expr jmp_true expr return_if_lambda if_exp_lambda
+        if_exp_not_lambda  ::= expr jmp_true expr return_if_lambda if_exp_not_lambda
         if_exp_not_lambda  ::= expr jmp_true expr return_if_lambda
                                return_stmt_lambda LAMBDA_MARKER
 

@@ -110,6 +110,10 @@ class Python27Parser(Python2Parser):
 
         ret_and    ::= expr JUMP_IF_FALSE_OR_POP return_expr_or_cond COME_FROM
         ret_or     ::= expr JUMP_IF_TRUE_OR_POP return_expr_or_cond COME_FROM
+        ret_and_if ::= expr JUMP_IF_FALSE_OR_POP return_expr_or_cond
+        ret_or_if  ::= expr JUMP_IF_TRUE_OR_POP return_expr_or_cond
+        return_expr ::= ret_and_if
+        return_expr ::= ret_or_if
         if_exp_ret ::= expr POP_JUMP_IF_FALSE expr RETURN_END_IF COME_FROM return_expr_or_cond
 
         expr_jitop ::= expr JUMP_IF_TRUE_OR_POP
@@ -210,6 +214,7 @@ class Python27Parser(Python2Parser):
 
         # "if"/"else" statement that ends in a RETURN
         ifelsestmtr       ::= testexpr return_if_stmts COME_FROM returns
+        ifelsestmtr       ::= testexpr return_if_stmts returns
 
         # Common with 2.6
         return_if_lambda   ::= RETURN_END_IF_LAMBDA COME_FROM
@@ -240,14 +245,14 @@ class Python27Parser(Python2Parser):
                            END_FINALLY
         """
         )
-        if "PyPy" in customize:
-            # PyPy-specific customizations
-            self.addRule(
-                """
-                        return_if_stmt ::= return_expr RETURN_END_IF come_froms
-                        """,
-                nop_func,
-            )
+        # Python 2.7 can emit RETURN_END_IF followed by one or more COME_FROMs
+        # in ordinary CPython short-circuit returns, not just PyPy.
+        self.addRule(
+            """
+                    return_if_stmt ::= return_expr RETURN_END_IF come_froms
+                    """,
+            nop_func,
+        )
 
         super(Python27Parser, self).customize_grammar_rules(tokens, customize)
 

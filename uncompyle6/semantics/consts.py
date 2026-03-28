@@ -74,9 +74,11 @@ PRECEDENCE = {
 
     "or":                     26,  # Boolean OR
     "ret_or":                 26,
+    "ret_or_if":              26,
 
     "and":                    24,  # Boolean AND
     "ret_and":                24,
+    "ret_and_if":             24,
     "not":                    22,  # Boolean NOT
     "unary_not":              22,  # Boolean NOT
     "compare":                20,  # in, not in, is, is not, <, <=, >, >=, !=, ==
@@ -457,7 +459,9 @@ TABLE_DIRECT = {
     "raise_stmt3": ("%|raise %c, %c, %c\n", 0, 1, 2),
 
     "ret_and": ("%c and %c", 0, 2),
+    "ret_and_if": ("%c and %c", 0, 2),
     "ret_or": ("%c or %c", 0, 2),
+    "ret_or_if": ("%c or %c", 0, 2),
 
     # Note: we have a custom rule, which calls when we don't
     # have "return None"
